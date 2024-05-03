@@ -1,4 +1,4 @@
-Run with virtual environment by typing "ocr_env\Scripts\activate" on your terminal first
+build yourself a virtual environment
 
 Now it's able to fetch data from Firebase
 
