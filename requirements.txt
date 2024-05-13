@@ -1,2 +1,6 @@
 flask
 firebase_admin
+scipy
+matplotlib
+easyocr
+ckip-transformers
