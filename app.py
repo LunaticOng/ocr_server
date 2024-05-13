@@ -6,8 +6,10 @@ from firebase_admin import credentials, firestore, storage
 app = Flask(__name__)
 
 # Initialize Firebase Admin SDK
-cred = credentials.Certificate("")
-firebase_app = firebase_admin.initialize_app(cred, {"storageBucket": ""})
+cred = credentials.Certificate("smartmailbox-secret.json")
+firebase_app = firebase_admin.initialize_app(
+    cred, {"storageBucket": "smartmailbox-8513f.appspot.com"}
+)
 
 db = firestore.client()
 
