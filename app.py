@@ -1,16 +1,7 @@
-# Flask and firebase packages
-
-from flask import Flask, jsonify, send_file
+from flask import Flask, jsonify, request
 import firebase_admin
-import tempfile
 from firebase_admin import credentials, firestore, storage
-
-# OCR packages
 import easyocr
-import cv2
-
-# LLM packages
-# from ckip.transformers import CkipWordSegmenter, CkipPosTagger, CkipNerChunker
 
 app = Flask(__name__)
 
@@ -22,11 +13,9 @@ firebase_app = firebase_admin.initialize_app(
 
 db = firestore.client()
 
-
 @app.route("/hw")
 def main_page():
     return "Hello, World!"
-
 
 # Example route to fetch data from Firestore
 @app.route("/data")
@@ -38,23 +27,30 @@ def get_data():
         serialized_data.append(doc.to_dict())
     return jsonify(serialized_data)
 
-
 @app.route("/")
 def get_photo():
     bucket = storage.bucket(app=firebase_app)
-    blob = bucket.blob("images/下載.png0e553576-fad1-487e-a6f5-912353f1fb74")
-    reader = easyocr.Reader(lang_list=['ch_tra', 'en'], gpu=False)
-    result = reader.readtext(blob.download_as_bytes())
-    temp_file = tempfile.NamedTemporaryFile(delete=False)
+    blob = bucket.blob("images/good_resolution.jpg")
+    
+    # Download the image data as bytes
+    image_data = blob.download_as_bytes()
 
+    # Use EasyOCR to read the text from the image
+    reader = easyocr.Reader(lang_list=["ch_tra", "en"], gpu=False)
+    result = reader.readtext(image_data)
+    
+    # Process the OCR results
     myDict = {}
-    cnt = 0
+    for idx, item in enumerate(result):
+        text = item[1]
+        myDict[idx] = text
 
-    for item in result:
-        myDict[cnt] = item[1]
-        cnt += 1
+    # Write the data to Firebase Firestore
+    try:
+        db.collection('mailBoxes').document('test').collection('mails').add(myDict)
+        return jsonify(myDict)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-    return jsonify(myDict)
-
-    blob.download_to_filename(temp_file.name)
-    return send_file(temp_file.name, mimetype="image/jpeg")
+if __name__ == '__main__':
+    app.run(debug=True)
