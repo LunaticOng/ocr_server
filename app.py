@@ -1,7 +1,10 @@
 from flask import Flask, jsonify, request
 import firebase_admin
-from firebase_admin import credentials, firestore, storage
+from firebase_admin import credentials, firestore, storage, initialize_app
+from firebase_functions import storage_fn
 import easyocr
+import io
+import pathlib
 
 app = Flask(__name__)
 
@@ -12,10 +15,13 @@ firebase_app = firebase_admin.initialize_app(
 )
 
 db = firestore.client()
+initialize_app()
+
 
 @app.route("/hw")
 def main_page():
     return "Hello, World!"
+
 
 # Example route to fetch data from Firestore
 @app.route("/data")
@@ -27,30 +33,41 @@ def get_data():
         serialized_data.append(doc.to_dict())
     return jsonify(serialized_data)
 
+
 @app.route("/")
+@storage_fn.on_object_finalized() # when there's a new file uploaded
 def get_photo():
+    """Reads text from an image using EasyOCR and stores it in Firestore."""
     bucket = storage.bucket(app=firebase_app)
-    blob = bucket.blob("images/good_resolution.jpg")
-    
-    # Download the image data as bytes
-    image_data = blob.download_as_bytes()
+    image_blob = bucket.blob("images/good_resolution.jpg") # replace with timestamp
+    image_data = image_blob.download_as_bytes()
 
-    # Use EasyOCR to read the text from the image
     reader = easyocr.Reader(lang_list=["ch_tra", "en"], gpu=False)
-    result = reader.readtext(image_data)
-    
-    # Process the OCR results
-    myDict = {}
-    for idx, item in enumerate(result):
-        text = item[1]
-        myDict[idx] = text
+    ocr_results = reader.readtext(image_data)
 
-    # Write the data to Firebase Firestore
+    ocr_dict = {}
+    for idx, result in enumerate(ocr_results, start=1):
+        text = result[1]
+        ocr_dict[str(idx)] = text
+
     try:
-        db.collection('mailBoxes').document('test').collection('mails').add(myDict)
-        return jsonify(myDict)
+        db.collection("mailBoxes").document("test").collection("mails").add(ocr_dict)
+        return jsonify(ocr_dict)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
+@app.route("/notify", methods=["POST"])
+def notify():
+    data = request.get_json()
+    file_path = data.get("filePath")
+    download_url = data.get("downloadURL")
+
+    # Handle the notification (e.g., log it, process it, etc.)
+    print(f"New file uploaded: {file_path}")
+    print(f"Download URL: {download_url}")
+
+    return jsonify({"status": "success"}), 200
+
+
+if __name__ == "__main__":
     app.run(debug=True)
