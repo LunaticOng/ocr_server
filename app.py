@@ -1,12 +1,16 @@
 from flask import Flask, jsonify, request
 import firebase_admin
 from firebase_admin import credentials, firestore, storage, initialize_app
-from firebase_functions import storage_fn
 import easyocr
-import io
-import pathlib
+import re
+import json
+import google.generativeai as genai
 
 app = Flask(__name__)
+API_KEY = ""
+genai.configure(api_key=API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
+chat = model.start_chat(history=[])
 
 # Initialize Firebase Admin SDK
 cred = credentials.Certificate("smartmailbox-secret.json")
@@ -14,13 +18,8 @@ firebase_app = firebase_admin.initialize_app(
     cred, {"storageBucket": "smartmailbox-8513f.appspot.com"}
 )
 
+# Initialize Firestore Database
 db = firestore.client()
-initialize_app()
-
-
-@app.route("/hw")
-def main_page():
-    return "Hello, World!"
 
 
 # Example route to fetch data from Firestore
@@ -35,26 +34,36 @@ def get_data():
 
 
 @app.route("/")
-@storage_fn.on_object_finalized() # when there's a new file uploaded
 def get_photo():
     """Reads text from an image using EasyOCR and stores it in Firestore."""
     bucket = storage.bucket(app=firebase_app)
-    image_blob = bucket.blob("images/good_resolution.jpg") # replace with timestamp
+    image_blob = bucket.blob(
+        "test/images/no_personal_info.jpeg"
+    )  # replace with timestamp
     image_data = image_blob.download_as_bytes()
 
     reader = easyocr.Reader(lang_list=["ch_tra", "en"], gpu=False)
     ocr_results = reader.readtext(image_data)
+    ocr_res = [res[1] for res in ocr_results]
+    ask_prompt = "\n".join(ocr_res)
+    ask_prompt = (
+        "請告訴我這封信的內容，收件人、寄件人、分類、如果有時間限制可以告訴我詳細的時間，如果有任何未知的訊息，請以None回覆，以Json格式回傳"
+        + "\n"
+        + ask_prompt
+    )
 
-    ocr_dict = {}
-    for idx, result in enumerate(ocr_results, start=1):
-        text = result[1]
-        ocr_dict[str(idx)] = text
+    response = chat.send_message(ask_prompt)
 
     try:
-        db.collection("mailBoxes").document("test").collection("mails").add(ocr_dict)
-        return jsonify(ocr_dict)
+        val = response.text
+        matcch = re.search(r"\{([^}]+)\}", val)
+        matcch = json.loads("{" + matcch.group(1) + "}")
+
+        db.collection("mailBoxes").document("test").collection("mails").add(matcch)
+        return jsonify(matcch)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/notify", methods=["POST"])
 def notify():
