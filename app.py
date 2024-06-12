@@ -47,7 +47,7 @@ def get_photo():
     ocr_res = [res[1] for res in ocr_results]
     ask_prompt = "\n".join(ocr_res)
     ask_prompt = (
-        "請告訴我這封信的內容，收件人、寄件人、分類、如果有時間限制可以告訴我詳細的時間，如果有任何未知的訊息，請以None回覆，以Json格式回傳"
+        "請告訴我這封信的內容，收件人(receiver)、寄件人(sender)、收件人地址(receiverAddress)、寄件人地址(senderAddress)、分類(type)、分爲高中低的緊急性(urgency)、如果有時間限制(timeLimit)可以告訴我詳細的時間，最後再給這封信一個合適的標題(title)，如果有任何未知的訊息，請以'未知'回覆，以Json格式回傳，並且key要用英文"
         + "\n"
         + ask_prompt
     )
@@ -63,19 +63,6 @@ def get_photo():
         return jsonify(matcch)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-@app.route("/notify", methods=["POST"])
-def notify():
-    data = request.get_json()
-    file_path = data.get("filePath")
-    download_url = data.get("downloadURL")
-
-    # Handle the notification (e.g., log it, process it, etc.)
-    print(f"New file uploaded: {file_path}")
-    print(f"Download URL: {download_url}")
-
-    return jsonify({"status": "success"}), 200
 
 
 if __name__ == "__main__":
